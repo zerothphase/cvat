@@ -332,6 +332,17 @@ class SourceType(str, Enum):
     def __str__(self):
         return self.value
 
+class ReviewResult(str, Enum):
+    SUBMITTED = 'submitted'
+    REJECTED = 'rejected'
+
+    @classmethod
+    def choices(self):
+        return tuple((x.value, x.name) for x in self)
+
+    def __str__(self):
+        return self.value
+
 class Annotation(models.Model):
     id = models.BigAutoField(primary_key=True)
     job = models.ForeignKey(Job, on_delete=models.CASCADE)
@@ -412,3 +423,24 @@ class TrackedShape(Shape):
 
 class TrackedShapeAttributeVal(AttributeVal):
     shape = models.ForeignKey(TrackedShape, on_delete=models.CASCADE)
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    rating = models.FloatField(default=5.0)
+
+class Review(models.Model):
+    id = models.PositiveIntegerField(primary_key=True)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE)
+    reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
+    annotator = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    result = models.CharField(max_length=16, choices=ReviewResult.choices())
+
+class Comment(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    annotation = models.ForeignKey(Annotation, null=True, on_delete=models.CASCADE)
+    review = models.ForeignKey(Review, on_delete=models.CASCADE)
+    frame = models.PositiveIntegerField()
+    significant = models.BooleanField(default=False)
+    resolved = models.BooleanField(default=False)
+    message = models.CharField(max_length=4096, default="")
+    created_date = models.DateTimeField(auto_now_add=True)
