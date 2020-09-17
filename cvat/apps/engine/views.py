@@ -5,6 +5,7 @@
 import os
 import os.path as osp
 import shutil
+import json
 import traceback
 from datetime import datetime
 from tempfile import mkstemp
@@ -27,6 +28,7 @@ from rest_framework.exceptions import APIException
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
+
 from sendfile import sendfile
 
 import cvat.apps.dataset_manager as dm
@@ -34,13 +36,15 @@ import cvat.apps.dataset_manager.views # pylint: disable=unused-import
 from cvat.apps.authentication import auth
 from cvat.apps.dataset_manager.serializers import DatasetFormatsSerializer
 from cvat.apps.engine.frame_provider import FrameProvider
-from cvat.apps.engine.models import Job, StatusChoice, Task, StorageMethodChoice
+from cvat.apps.engine.models import (
+    Job, StatusChoice, Task, StorageMethodChoice,
+    Review, Comment, Profile)
 from cvat.apps.engine.serializers import (
     AboutSerializer, AnnotationFileSerializer, BasicUserSerializer,
     DataMetaSerializer, DataSerializer, ExceptionSerializer,
     FileInfoSerializer, JobSerializer, LabeledDataSerializer,
     LogEventSerializer, ProjectSerializer, RqStatusSerializer,
-    TaskSerializer, UserSerializer)
+    TaskSerializer, UserSerializer, ReviewSerializer, ReviewSummarySerializer)
 from cvat.apps.engine.utils import av_scan_paths
 
 from . import models, task
@@ -683,6 +687,39 @@ class JobViewSet(viewsets.GenericViewSet,
                 except (AttributeError, IntegrityError) as e:
                     return Response(data=str(e), status=status.HTTP_400_BAD_REQUEST)
                 return Response(data)
+
+    @swagger_auto_schema(method='get', operation_summary='Get all reviews of a specific job')
+    @swagger_auto_schema(method='delete', operation_summary='Delete specific review from the server, pass "id" as a query parameter')
+    @swagger_auto_schema(method='post', operation_summary='Submit annotation review for a job')
+    @action(detail=True, methods=['GET', 'DELETE', 'POST'], serializer_class=ReviewSerializer)
+    def reviews(self, request, pk):
+        db_job = self.get_object() # force to call check_object_permissions
+        if request.method == 'GET':
+            queryset = Review.objects.filter(job_id=pk)
+            serializer = ReviewSerializer(queryset, many=True)
+            return Response(serializer.data)
+        elif request.method == 'POST':
+            serializer = ReviewSerializer(data=request.data, context={'request': request, 'job': db_job})
+            try:
+                if serializer.is_valid(raise_exception=True):
+                    serializer.save()
+                    return Response(serializer.data)
+            except (AttributeError, KeyError) as e:
+                return Response(data=str(e), status=status.HTTP_400_BAD_REQUEST)
+        elif request.method == 'DELETE':
+            review_pk = self.request.query_params.get("id", None)
+            if review_pk is None:
+                raise serializers.ValidationError(
+                    "Please specify a correct query parameter 'id' for the request")
+            Review.objects.get(pk=review_pk).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @swagger_auto_schema(method='get', operation_summary='Get short reviews summary')
+    @action(detail=True, methods=['GET'], url_path='reviews/summary', serializer_class=ReviewSummarySerializer)
+    def reviews_summary(self, request, pk):
+        db_job = self.get_object() # force to call check_object_permissions
+        serialize = ReviewSummarySerializer(db_job)
+        return Response(serialize.data)
 
 @method_decorator(name='list', decorator=swagger_auto_schema(
     operation_summary='Method provides a paginated list of users registered on the server'))

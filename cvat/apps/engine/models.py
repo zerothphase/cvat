@@ -249,6 +249,7 @@ class Segment(models.Model):
 class Job(models.Model):
     segment = models.ForeignKey(Segment, on_delete=models.CASCADE)
     assignee = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    reviewer = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='reviewed_jobs')
     status = models.CharField(max_length=32, choices=StatusChoice.choices(),
         default=StatusChoice.ANNOTATION)
 
@@ -425,22 +426,26 @@ class TrackedShapeAttributeVal(AttributeVal):
     shape = models.ForeignKey(TrackedShape, on_delete=models.CASCADE)
 
 class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     rating = models.FloatField(default=5.0)
 
 class Review(models.Model):
-    id = models.PositiveIntegerField(primary_key=True)
+    id = models.AutoField(primary_key=True)
     job = models.ForeignKey(Job, on_delete=models.CASCADE)
     reviewer = models.ForeignKey(User, on_delete=models.CASCADE)
-    annotator = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
-    result = models.CharField(max_length=16, choices=ReviewResult.choices())
+    annotator = models.ForeignKey(User, on_delete=models.CASCADE, null=True, related_name='examination_set')
+    status = models.CharField(max_length=16, choices=ReviewResult.choices())
+    estimated_quality = models.FloatField(default=5.0)
+    date = models.DateTimeField(auto_now_add=True)
 
 class Comment(models.Model):
     id = models.BigAutoField(primary_key=True)
-    annotation = models.ForeignKey(Annotation, null=True, on_delete=models.CASCADE)
-    review = models.ForeignKey(Review, on_delete=models.CASCADE)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE)
+    labeled_shape = models.ForeignKey(LabeledShape, null=True, on_delete=models.CASCADE)
+    tracked_shape = models.ForeignKey(TrackedShape, null=True, on_delete=models.CASCADE)
     frame = models.PositiveIntegerField()
     significant = models.BooleanField(default=False)
     resolved = models.BooleanField(default=False)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
     message = models.CharField(max_length=4096, default="")
-    created_date = models.DateTimeField(auto_now_add=True)
+    date = models.DateTimeField(auto_now_add=True)

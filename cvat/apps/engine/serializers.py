@@ -492,3 +492,67 @@ class LogEventSerializer(serializers.Serializer):
 
 class AnnotationFileSerializer(serializers.Serializer):
     annotation_file = serializers.FileField()
+
+class ProfileSerializer(serializers.Serializer):
+    user = BasicUserSerializer(source='user')
+
+    class Meta:
+        model = models.Profile
+        fields = ('rating')
+
+class ReviewSerializer(serializers.ModelSerializer):
+    reviewer_id = serializers.IntegerField(read_only=True)
+    annotator_id = serializers.IntegerField(read_only=True, required=False)
+    job_id = serializers.IntegerField(read_only=True)
+    status = serializers.ChoiceField(choices=models.ReviewResult.choices())
+    estimated_quality = serializers.FloatField(max_value=5.0, min_value=0)
+
+    class Meta:
+        model = models.Review
+        fields = ('id', 'status', 'estimated_quality', 'date', 'reviewer_id', 'annotator_id', 'job_id')
+        read_only_fields = ('date', 'reviewer_id', 'annotator_id', 'job_id')
+
+    def to_internal_value(self, data):
+        return {
+            'status': data['status'],
+            'estimated_quality': data['estimated_quality'],
+            'reviewer_id': self.context['request'].user.id,
+            'annotator_id': self.context['job'].assigne.id if self.context['job'].assignee else None,
+            'job_id': self.context['job'].id,
+        }
+
+    def create(self, validated_data):
+        return models.Review.objects.create(**validated_data)
+
+class ReviewSummarySerializer(serializers.Serializer):
+    reviews = serializers.IntegerField(read_only=True)
+    average_estimated_quality = serializers.FloatField(read_only=True)
+    comments_unresolved = serializers.IntegerField(read_only=True)
+    comments_resolved = serializers.IntegerField(read_only=True)
+    annotators = serializers.ListField(allow_empty=True, read_only=True)
+    reviewers = serializers.ListField(allow_empty=True, read_only=True)
+
+    def to_representation(self, instance):
+        db_reviews = instance.review_set.all()
+        qualities = list(map(lambda db_review: db_review.estimated_quality, db_reviews))
+        #reviewers = list(map(db_reviews, lambda db_review: db_review.reviewer))
+        #annotators = list(map(db_reviews, lambda db_review: db_review.annotator))
+        return {
+            'reviews': len(db_reviews),
+            'average_estimated_quality': sum(qualities) / len(qualities),
+            'comments_unresolved': 0,
+            'comments_resolved': 0,
+            'annotators': [],
+            'reviewers': []
+        }
+
+class CommentSerializer(serializers.Serializer):
+    # owner = BasicUserSerializer(source='annotator')
+    # job = SimpleJobSerializer(source='job')
+    labeled_shape = LabeledShapeSerializer(required=False)
+    tracked_shape = TrackedShapeSerializer(required=False)
+
+    class Meta:
+        model = models.Comment
+        fields = ('id', 'frame', 'significant', 'resolved', 'message', 'date', 'owner', 'job', )
+        read_only_fields = ('date')
