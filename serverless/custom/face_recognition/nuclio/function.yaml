@@ -1,0 +1,44 @@
+metadata:
+  name: face-recognition
+  namespace: cvat
+  annotations:
+    name: Face Detection via face-recognition
+    type: detector
+    framework: face-recognition
+    spec: |
+      [
+        { "id": 1, "name": "face" }
+      ]
+
+spec:
+  description: face-recognition package
+  runtime: 'python:3.6'
+  handler: main:handler
+  eventTimeout: 30s
+
+  build:
+    image: cvat/face-recognition
+    baseImage: python:3.6.12
+
+    directives:
+      preCopy:
+        - kind: RUN
+          value: apt-get update && apt-get install -y curl build-essential cmake
+        - kind: WORKDIR
+          value: /opt/nuclio
+        - kind: RUN
+          value: pip install pyyaml pillow face-recognition numpy
+
+  triggers:
+    myHttpTrigger:
+      maxWorkers: 2
+      kind: 'http'
+      workerAvailabilityTimeoutMilliseconds: 10000
+      attributes:
+        maxRequestBodySize: 33554432 # 32MB
+
+  platform:
+    attributes:
+      restartPolicy:
+        name: always
+        maximumRetryCount: 3

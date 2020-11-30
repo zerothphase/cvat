@@ -1,0 +1,46 @@
+metadata:
+  name: opencv-dnn-face-detector
+  namespace: cvat
+  annotations:
+    name: Opencv DNN Face Detection
+    type: detector
+    framework: opencv
+    spec: |
+      [
+        { "id": 1, "name": "face" }
+      ]
+
+spec:
+  description: opencv-dnn face detection
+  runtime: 'python:3.6'
+  handler: main:handler
+  eventTimeout: 30s
+
+  build:
+    image: cvat/opencv-dnn-fd
+    baseImage: python:3.6.12
+
+    directives:
+      preCopy:
+        - kind: WORKDIR
+          value: /opt/nuclio
+        - kind: RUN
+          value: wget https://raw.githubusercontent.com/opencv/opencv_3rdparty/dnn_samples_face_detector_20180205_fp16/res10_300x300_ssd_iter_140000_fp16.caffemodel
+        - kind: RUN
+          value: wget https://raw.githubusercontent.com/opencv/opencv/e90438fe3cbfa27d9969aaa9f09c8bfbb69b3e3f/samples/dnn/face_detector/deploy.prototxt
+        - kind: RUN
+          value: pip3 install pillow pyyaml opencv-python-headless==4.4.0.46
+
+  triggers:
+    myHttpTrigger:
+      maxWorkers: 2
+      kind: 'http'
+      workerAvailabilityTimeoutMilliseconds: 10000
+      attributes:
+        maxRequestBodySize: 33554432 # 32MB
+
+  platform:
+    attributes:
+      restartPolicy:
+        name: always
+        maximumRetryCount: 3
