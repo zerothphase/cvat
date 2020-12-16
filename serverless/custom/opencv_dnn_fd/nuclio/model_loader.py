@@ -15,7 +15,7 @@ class ModelLoader:
         '''
         w, h = image.size
 
-        # TODO assert image type (RGB vs GRAY)
+        image = image.convert("RGB")
 
         # top right bottom left
         np_image = np.array(image)
