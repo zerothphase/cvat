@@ -1,0 +1,50 @@
+metadata:
+  name: insightface
+  namespace: cvat
+  annotations:
+    name: Insightface Face and Facial Landmarks Detection
+    type: detector
+    framework: mxnet
+    spec: |
+      [
+        { "id": 1, "name": "face" },
+        { "id": 2, "name": "facial_landmarks" }
+      ]
+
+spec:
+  description: Insightface Facial Landmarks Detection
+  runtime: 'python:3'
+  handler: main:handler
+  eventTimeout: 30s
+
+  build:
+    image: cvat/insightface_flm
+    baseImage: nvidia/cuda:10.2-runtime
+
+    directives:
+      preCopy:
+        - kind: WORKDIR
+          value: /opt/nuclio
+        - kind: RUN
+          value: apt-get update && apt-get install -yq build-essential python3-dev python3-pip
+        - kind: RUN
+          value: pip3 install --no-cache-dir -U pip
+        - kind: RUN
+          value: pip3 install --no-cache-dir pillow pyyaml opencv-python-headless Cython mxnet-cu102 insightface
+      postCopy:
+        - kind: WORKDIR
+          value: /opt/nuclio
+
+  triggers:
+    myHttpTrigger:
+      maxWorkers: 1
+      kind: 'http'
+      workerAvailabilityTimeoutMilliseconds: 10000
+      attributes:
+        maxRequestBodySize: 33554432 # 32MB
+
+  platform:
+    attributes:
+      restartPolicy:
+        name: always
+        maximumRetryCount: 3
